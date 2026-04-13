@@ -1,0 +1,26 @@
+{
+  "name": "douyin-live-welcome-announcer",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Local macOS announcer for Douyin live room entry events",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "dev": "tsx src/cli.ts",
+    "watch": "tsx src/cli.ts watch",
+    "smoke:fixture": "tsx src/cli.ts smoke-fixture",
+    "test": "vitest run"
+  },
+  "engines": {
+    "node": ">=20.12.0"
+  },
+  "dependencies": {
+    "playwright": "^1.52.0"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "tsx": "^4.20.3",
+    "typescript": "^5.8.3",
+    "vitest": "^3.1.4"
+  }
+}

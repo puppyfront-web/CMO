@@ -1,0 +1,7 @@
+interface:
+  display_name: "Douyin Welcome"
+  short_description: "Speak viewer join welcomes for a Douyin live room on macOS."
+  default_prompt: "Use $douyin_live_welcome_announcer to launch spoken welcome announcements for my Douyin live room."
+
+policy:
+  allow_implicit_invocation: true

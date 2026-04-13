@@ -1,0 +1,7 @@
+node_modules
+dist
+.DS_Store
+.playwright
+tmp
+logs
+.venv-edge-tts
