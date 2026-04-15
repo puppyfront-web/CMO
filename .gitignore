@@ -1,7 +1,30 @@
-node_modules
-dist
 .DS_Store
-.playwright
-tmp
-logs
-.venv-edge-tts
+
+# Dependencies and build output
+node_modules/
+dist/
+**/node_modules/
+**/dist/
+.playwright/
+playwright-report/
+test-results/
+coverage/
+
+# Local runtime environments
+.venv-edge-tts/
+**/.venv-edge-tts/
+
+# Logs and temp files
+logs/
+tmp/
+*.log
+
+# Local-only research and delivery artifacts
+deliverables/
+tmp_ws/
+
+# Local environment files
+.env
+.env.*
+!.env.example
+*.local

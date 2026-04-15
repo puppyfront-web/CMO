@@ -12,9 +12,9 @@
 ## 当前内容
 
 - `packages/douyin-live-welcome-announcer`
-  - 抖音直播间欢迎播报的开发源码
+  - 抖音直播间礼物昵称播报的开发源码
 - `skills/douyin-live-welcome-announcer-openclaw`
-  - 给 OpenClaw 用户使用的分发版 skill
+  - 给 OpenClaw 用户使用的礼物播报分发版 skill
 
 ## 说明
 

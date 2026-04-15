@@ -5,9 +5,9 @@ import readline from "node:readline";
 
 import { Deduper } from "./dedupe.js";
 import { parseCliArgs } from "./config.js";
-import { extractNicknameFromText, renderWelcomeMessage } from "./nickname.js";
+import { extractNicknameFromText, renderGiftAnnouncement, renderWelcomeMessage } from "./nickname.js";
 import { SpeakerQueue } from "./speaker.js";
-import { startWatcher } from "./watcher.js";
+import { isDouyinLiveHomepage, isSameWatchedPage, startWatcher } from "./watcher.js";
 
 async function main(): Promise<void> {
   const config = parseCliArgs(process.argv.slice(2));
@@ -29,9 +29,12 @@ async function main(): Promise<void> {
     logger: log
   });
   const deduper = new Deduper(config.dedupeMs);
+  let warnedHomepage = false;
+  let warnedWrongRoom = false;
 
   const watcher = await startWatcher({
     url: config.url,
+    launchUrl: config.launchUrl,
     userDataDir: config.userDataDir,
     headless: config.headless,
     logger: log,
@@ -43,13 +46,38 @@ async function main(): Promise<void> {
         }
       : undefined,
     onEntry: async (entry) => {
-      if (!deduper.shouldAccept(entry.nickname)) {
-        log(`忽略重复进场：${entry.nickname}`);
+      if (!isSameWatchedPage(entry.pageUrl, config.url)) {
+        if (!warnedWrongRoom) {
+          warnedWrongRoom = true;
+          log(`当前页面已偏离指定直播间：${config.url}`);
+        }
         return;
       }
 
-      const message = renderWelcomeMessage(config.template, entry.nickname);
-      log(`欢迎播报：${entry.nickname}`);
+      warnedWrongRoom = false;
+
+      if (isDouyinLiveHomepage(entry.pageUrl)) {
+        if (!warnedHomepage) {
+          warnedHomepage = true;
+          log("当前仍在 live.douyin.com 首页，请切到你自己的真实直播间页面。");
+        }
+        return;
+      }
+
+      warnedHomepage = false;
+
+      if (entry.kind !== "gift") {
+        return;
+      }
+
+      const dedupeKey = `${entry.nickname}::${entry.gift ?? "礼物"}`;
+      if (!deduper.shouldAccept(dedupeKey)) {
+        log(`忽略重复礼物播报：${entry.nickname} ${entry.gift ?? "礼物"}`);
+        return;
+      }
+
+      const message = renderGiftAnnouncement(config.template, entry.nickname, entry.gift, entry.rawText);
+      log(`礼物播报：${entry.nickname} ${entry.gift ?? "礼物"}`);
       void speaker.speak(message).catch((error) => {
         log(`语音播报失败：${String(error)}`);
       });
@@ -57,14 +85,25 @@ async function main(): Promise<void> {
   });
 
   log(`监听页面已打开：${watcher.page.url()}`);
+  log(`指定直播间：${config.url}`);
+  if (config.launchUrl !== config.url) {
+    log("已先打开抖音直播首页，请先登录，再在当前窗口进入指定直播间。");
+  }
+  if (!isSameWatchedPage(watcher.page.url(), config.url)) {
+    log(`当前页面还没进入指定直播间：${config.url}`);
+  }
+  if (isDouyinLiveHomepage(watcher.page.url())) {
+    log("当前仍在 live.douyin.com 首页，请切到你自己的真实直播间页面。");
+  }
   log("命令：p 暂停，r 恢复，q 退出");
 
   const teardownInput = attachInputControls(watcher.pause, watcher.resume, watcher.isPaused, log);
 
   try {
-    await waitForSignal();
+    await Promise.race([waitForSignal(), watcher.closed]);
   } finally {
     teardownInput();
+    speaker.stop();
     await watcher.stop();
     await speaker.waitForIdle();
   }
@@ -92,8 +131,10 @@ async function runSmokeFixture(config: ReturnType<typeof parseCliArgs>): Promise
       headless: true,
       logger: log,
       onEntry: async (entry) => {
-        events.push(entry.nickname);
-        void speaker.speak(renderWelcomeMessage(config.template, entry.nickname));
+        if (entry.kind === "join") {
+          events.push(entry.nickname);
+          void speaker.speak(renderWelcomeMessage(config.template, entry.nickname));
+        }
       }
     });
 

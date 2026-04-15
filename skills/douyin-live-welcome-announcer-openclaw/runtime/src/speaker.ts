@@ -3,7 +3,7 @@ import { existsSync } from "node:fs";
 import { rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { spawn } from "node:child_process";
+import { spawn, type ChildProcess } from "node:child_process";
 
 export interface SpeakerOptions {
   dryRun?: boolean;
@@ -14,6 +14,7 @@ export interface SpeakerOptions {
   edgePitch?: string;
   edgeVolume?: string;
   logger?: (message: string) => void;
+  speakImpl?: (text: string) => Promise<void>;
 }
 
 export interface EdgeTtsArgsOptions {
@@ -118,11 +119,19 @@ export function resolveEdgeTtsPythonCommand(): string {
 
 export class SpeakerQueue {
   private tail: Promise<void> = Promise.resolve();
+  private stopped = false;
+  private generation = 0;
+  private currentChild: ChildProcess | undefined;
 
   constructor(private readonly options: SpeakerOptions = {}) {}
 
   speak(text: string): Promise<void> {
-    this.tail = this.tail.then(() => this.run(text));
+    if (this.stopped) {
+      return Promise.resolve();
+    }
+
+    const generation = this.generation;
+    this.tail = this.tail.catch(() => {}).then(() => this.run(text, generation));
     return this.tail;
   }
 
@@ -130,10 +139,27 @@ export class SpeakerQueue {
     return this.tail;
   }
 
-  private run(text: string): Promise<void> {
+  stop(): void {
+    this.stopped = true;
+    this.generation += 1;
+
+    if (this.currentChild && !this.currentChild.killed) {
+      this.currentChild.kill("SIGTERM");
+    }
+  }
+
+  private run(text: string, generation: number): Promise<void> {
+    if (this.stopped || generation !== this.generation) {
+      return Promise.resolve();
+    }
+
     if (this.options.dryRun) {
       this.options.logger?.(`[dry-run] ${text}`);
       return Promise.resolve();
+    }
+
+    if (this.options.speakImpl) {
+      return this.options.speakImpl(text);
     }
 
     if (this.options.engine === "say") {
@@ -155,21 +181,7 @@ export class SpeakerQueue {
       return this.spawnProcess("powershell.exe", buildPowerShellArgs(buildWindowsSpeechScript(text, this.options.sayVoice)));
     }
 
-    return new Promise((resolve, reject) => {
-      const child = spawn("/usr/bin/say", buildSayArgs(text, this.options.sayVoice), {
-        stdio: "ignore"
-      });
-
-      child.on("error", reject);
-      child.on("exit", (code) => {
-        if (code === 0) {
-          resolve();
-          return;
-        }
-
-        reject(new Error(`say exited with code ${code ?? "unknown"}`));
-      });
-    });
+    return this.spawnProcess("/usr/bin/say", buildSayArgs(text, this.options.sayVoice));
   }
 
   private async runEdge(text: string): Promise<void> {
@@ -206,9 +218,19 @@ export class SpeakerQueue {
       const child = spawn(command, args, {
         stdio: "ignore"
       });
+      this.currentChild = child;
 
       child.on("error", reject);
       child.on("exit", (code) => {
+        if (this.currentChild === child) {
+          this.currentChild = undefined;
+        }
+
+        if (this.stopped) {
+          resolve();
+          return;
+        }
+
         if (code === 0) {
           resolve();
           return;

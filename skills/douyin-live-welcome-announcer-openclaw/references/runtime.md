@@ -23,12 +23,16 @@ SKILL_DIR="$PWD/skills/douyin-live-welcome-announcer-openclaw"
 bash "$SKILL_DIR/scripts/run.sh" "https://your-live-room-url"
 ```
 
+The live-room URL is required. The runtime will not start without it.
+
+Gift detection listens to Douyin's webcast push WebSocket frames instead of scraping gift text from the DOM, so the live-room tab can stay visually unchanged while gifts are still announced.
+
 Optional environment variables:
 
 - `DOUYIN_TTS_ENGINE`: `auto` | `edge` | `say`
 - `DOUYIN_EDGE_VOICE`: default `zh-CN-XiaoxiaoNeural`
 - `DOUYIN_SAY_VOICE`: default `Tingting`
-- `DOUYIN_TEMPLATE`: default `欢迎 {nickname} 来到直播间`
+- `DOUYIN_TEMPLATE`: default `感谢{nickname}送的{gift}，比心`
 
 ## Voice selection
 
@@ -49,3 +53,5 @@ SKILL_DIR="$PWD/skills/douyin-live-welcome-announcer-openclaw"
 cd "$SKILL_DIR/runtime"
 npm run smoke:fixture
 ```
+
+This smoke test only verifies the local DOM observer path with a fixture page. Real gift detection is covered by the runtime test suite.

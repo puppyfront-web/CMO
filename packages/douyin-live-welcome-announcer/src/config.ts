@@ -8,6 +8,7 @@ export type SpeakerEngine = "auto" | "say" | "edge";
 export interface RuntimeConfig {
   command: CommandName;
   url: string;
+  launchUrl: string;
   userDataDir: string;
   speakerEngine: SpeakerEngine;
   sayVoice: string;
@@ -22,7 +23,24 @@ export interface RuntimeConfig {
   debugCandidates: boolean;
 }
 
-const DEFAULT_TEMPLATE = "欢迎 {nickname} 来到直播间";
+const DEFAULT_TEMPLATE = "感谢{nickname}送的{gift}，比心";
+
+function resolveLaunchUrl(command: CommandName, targetUrl: string): string {
+  if (command !== "watch") {
+    return targetUrl;
+  }
+
+  try {
+    const parsed = new URL(targetUrl);
+    if (parsed.hostname === "live.douyin.com") {
+      return "https://live.douyin.com/";
+    }
+  } catch {
+    return targetUrl;
+  }
+
+  return targetUrl;
+}
 
 export function parseCliArgs(argv: string[]): RuntimeConfig {
   const [firstArg, ...restArgs] = argv;
@@ -32,14 +50,18 @@ export function parseCliArgs(argv: string[]): RuntimeConfig {
 
   const values = parseFlags(flags);
   const stateRoot = path.join(os.homedir(), ".douyin-live-welcome");
+  const url =
+    values.url ??
+    (command === "smoke-fixture" ? pathToFileURL(path.resolve("tests/fixtures/live-room.html")).toString() : undefined);
+
+  if (command === "watch" && !url) {
+    throw new Error("watch 模式必须提供 --url 直播间链接");
+  }
 
   return {
     command,
-    url:
-      values.url ??
-      (command === "smoke-fixture"
-        ? pathToFileURL(path.resolve("tests/fixtures/live-room.html")).toString()
-        : "https://live.douyin.com/"),
+    url: url!,
+    launchUrl: resolveLaunchUrl(command, url!),
     userDataDir: values["user-data-dir"] ?? path.join(stateRoot, "browser-profile"),
     speakerEngine: parseSpeakerEngine(values.engine),
     sayVoice: values["say-voice"] ?? "Tingting",

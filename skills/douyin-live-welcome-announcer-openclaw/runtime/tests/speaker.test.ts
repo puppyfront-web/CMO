@@ -4,6 +4,7 @@ import {
   buildEdgeTtsArgs,
   buildPowerShellArgs,
   buildSayArgs,
+  SpeakerQueue,
   buildWindowsMediaPlayerScript,
   buildWindowsSpeechScript
 } from "../src/speaker.js";
@@ -74,5 +75,37 @@ describe("buildWindowsMediaPlayerScript", () => {
     expect(script).toContain("PresentationCore");
     expect(script).toContain("MediaPlayer");
     expect(script).toContain("welcome.mp3");
+  });
+});
+
+describe("SpeakerQueue.stop", () => {
+  test("stops queued announcements that have not started yet", async () => {
+    let resolveFirst!: () => void;
+    const spoken: string[] = [];
+    const queue = new SpeakerQueue({
+      speakImpl: async (text) => {
+        spoken.push(text);
+        if (text === "first") {
+          await new Promise<void>((resolve) => {
+            resolveFirst = resolve;
+          });
+        }
+      }
+    });
+
+    const first = queue.speak("first");
+    const second = queue.speak("second");
+
+    await expect
+      .poll(() => spoken)
+      .toEqual(["first"]);
+
+    queue.stop();
+    resolveFirst();
+
+    await first;
+    await second;
+
+    expect(spoken).toEqual(["first"]);
   });
 });
