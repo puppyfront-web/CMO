@@ -1,0 +1,33 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+ARTIFACT_DIR="${1:?artifact dir required}"
+INPUT_JSON="$ARTIFACT_DIR/analysis.json"
+OUTPUT_JSON="$ARTIFACT_DIR/analysis.enriched.json"
+
+if [ ! -f "$INPUT_JSON" ]; then
+  echo "missing $INPUT_JSON" >&2
+  exit 1
+fi
+
+cat <<'EOF'
+This example extension shows where to call an agent:
+
+1. Read analysis.json
+2. Ask an agent to enrich it with extra fields
+3. Write analysis.enriched.json back into the artifact directory
+
+Replace this file with a real implementation when wiring a live agent.
+EOF
+
+/usr/bin/python3 - <<'PY' "$INPUT_JSON" "$OUTPUT_JSON"
+import json
+import sys
+from pathlib import Path
+
+input_path = Path(sys.argv[1])
+output_path = Path(sys.argv[2])
+data = json.loads(input_path.read_text(encoding="utf-8"))
+data["extension_example"] = "agent-enrichment"
+output_path.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+PY

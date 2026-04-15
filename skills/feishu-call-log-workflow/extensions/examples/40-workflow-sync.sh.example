@@ -1,0 +1,28 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+ARTIFACT_DIR="${1:?artifact dir required}"
+OUTPUT_JSON="$ARTIFACT_DIR/workflow-sync.json"
+
+cat <<'EOF'
+This example extension shows where to call another workflow:
+
+1. Read artifacts from the current run directory
+2. Invoke another script, service, or sub-workflow
+3. Save the returned status into workflow-sync.json
+
+Use this pattern for CRM sync, notifications, or downstream automations.
+EOF
+
+/usr/bin/python3 - <<'PY' "$OUTPUT_JSON"
+import json
+import sys
+from pathlib import Path
+
+output_path = Path(sys.argv[1])
+payload = {
+    "extension_example": "workflow-sync",
+    "status": "placeholder"
+}
+output_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+PY
