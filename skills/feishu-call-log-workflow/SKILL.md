@@ -35,6 +35,16 @@ This workflow turns a local call recording into three outputs:
 - Mind-map documents are always newly created per call
 - Mind-map document title uses `客户名-行业-日期` when possible
 
+## Built-In Prompt Contract
+
+Every execution of this skill should load and follow:
+
+- `PROMPT.md`
+
+Treat that file as the built-in extraction and writeback contract for this workflow, not as optional reference material.
+
+User requests may add constraints, but they must not break the fixed schema, mind-map rules, or spreadsheet write rules defined in `PROMPT.md`.
+
 ## Workflow
 
 1. Ensure helper environment is ready:
@@ -154,3 +164,4 @@ bash "$SKILL_DIR/scripts/install-global.sh"
 - `INSTALL.md`
 - `stages/README.md`
 - `extensions/README.md`
+- `PROMPT.md`
