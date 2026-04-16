@@ -13,8 +13,12 @@
 
 - `packages/douyin-live-welcome-announcer`
   - 抖音直播间礼物昵称播报的开发源码
+- `packages/bill-processing-os`
+  - 票据结构化录入工作流的开发源码
 - `skills/douyin-live-welcome-announcer-openclaw`
   - 给 OpenClaw 用户使用的礼物播报分发版 skill
+- `skills/bill-processing-os-openclaw`
+  - 给 OpenClaw 用户使用的票据结构化录入分发版 skill
 
 ## 说明
 

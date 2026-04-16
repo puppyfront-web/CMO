@@ -1,0 +1,15 @@
+{
+  "doc_id": "doc-uncertain-scanned",
+  "file_url": "file:///fixtures/uncertain-scanned-pdf.pdf",
+  "source_filename": "uncertain-scanned-pdf.pdf",
+  "mime_type": "application/pdf",
+  "markdown": "",
+  "ocr_text": "",
+  "image_meta": {
+    "page_count": 1,
+    "width": 1240,
+    "height": 1754,
+    "dpi": 200
+  },
+  "handwriting": []
+}
