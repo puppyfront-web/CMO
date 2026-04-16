@@ -1,0 +1,14 @@
+{
+  "doc_id": "doc-clean-printed-image",
+  "file_url": "file:///fixtures/clean-printed-image.png",
+  "source_filename": "clean-printed-image.png",
+  "mime_type": "image/png",
+  "markdown": "Vendor: Northwind\nTotal: 1280.00",
+  "ocr_text": "Vendor Northwind Total 1280.00",
+  "image_meta": {
+    "width": 1240,
+    "height": 1754,
+    "dpi": 300,
+    "page_count": 1
+  }
+}

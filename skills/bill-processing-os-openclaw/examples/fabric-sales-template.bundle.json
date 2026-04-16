@@ -1,0 +1,39 @@
+{
+  "template": {
+    "type_id": "fabric_sales_v1",
+    "version": 1,
+    "features": {
+      "keywords": ["销货清单", "旺泰"],
+      "layout_patterns": ["table_layout"],
+      "table_headers": ["品名", "数量", "单价", "金额"]
+    },
+    "field_mapping": {
+      "bill_date": ["日期"],
+      "vendor_name": ["供应商"],
+      "total_amount": ["合计", "总金额"]
+    },
+    "table_schema": [
+      { "source": "品名", "target": "item_name" },
+      { "source": "数量", "target": "quantity" },
+      { "source": "单价", "target": "unit_price" },
+      { "source": "金额", "target": "amount" }
+    ],
+    "excel_mapping_id": "fabric_excel_v1",
+    "confidence_threshold": 0.8,
+    "post_rules": []
+  },
+  "excel_mapping": {
+    "template_id": "fabric_excel_v1",
+    "sheet": "Sheet1",
+    "mapping": {
+      "A": "bill_date",
+      "B": "vendor_name",
+      "C": "items[].item_name",
+      "D": "items[].quantity",
+      "E": "items[].unit_price",
+      "F": "items[].amount"
+    },
+    "mode": "expand_items",
+    "start_row": 2
+  }
+}
