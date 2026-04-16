@@ -5,7 +5,10 @@ import readline from "node:readline";
 
 import { Deduper } from "./dedupe.js";
 import { parseCliArgs } from "./config.js";
+import { analyzeLeadSession, writeLeadAnalysis } from "./lead-analysis.js";
 import { extractNicknameFromText, renderGiftAnnouncement, renderWelcomeMessage } from "./nickname.js";
+import { createSessionRecorder, readSessionEvents } from "./session.js";
+import { finalizeWatcherSession } from "./shutdown.js";
 import { SpeakerQueue } from "./speaker.js";
 import { isDouyinLiveHomepage, isSameWatchedPage, startWatcher } from "./watcher.js";
 
@@ -31,6 +34,16 @@ async function main(): Promise<void> {
   const deduper = new Deduper(config.dedupeMs);
   let warnedHomepage = false;
   let warnedWrongRoom = false;
+  const startedAt = new Date().toISOString();
+  const sessionRecorder = await createSessionRecorder({
+    roomUrl: config.url,
+    startedAt
+  });
+  const counts = {
+    join: 0,
+    gift: 0,
+    comment: 0
+  };
 
   const watcher = await startWatcher({
     url: config.url,
@@ -66,6 +79,9 @@ async function main(): Promise<void> {
 
       warnedHomepage = false;
 
+      counts[entry.kind] += 1;
+      await sessionRecorder.record(entry);
+
       if (entry.kind !== "gift") {
         return;
       }
@@ -96,6 +112,7 @@ async function main(): Promise<void> {
     log("当前仍在 live.douyin.com 首页，请切到你自己的真实直播间页面。");
   }
   log("命令：p 暂停，r 恢复，q 退出");
+  log(`本场直播会话目录：${sessionRecorder.sessionDir}`);
 
   const teardownInput = attachInputControls(watcher.pause, watcher.resume, watcher.isPaused, log);
 
@@ -103,9 +120,25 @@ async function main(): Promise<void> {
     await Promise.race([waitForSignal(), watcher.closed]);
   } finally {
     teardownInput();
-    speaker.stop();
-    await watcher.stop();
-    await speaker.waitForIdle();
+    await finalizeWatcherSession({
+      watcher,
+      speaker,
+      sessionRecorder,
+      counts,
+      analyze: async ({ summary, context }) =>
+        analyzeLeadSession({
+          roomUrl: summary.roomUrl,
+          startedAt: summary.startedAt,
+          endedAt: summary.endedAt,
+          events: await readSessionEvents(summary.sessionDir),
+          context,
+          logger: log
+        }),
+      writeAnalysis: async ({ summary, analysis }) => {
+        await writeLeadAnalysis(summary.sessionDir, analysis);
+      },
+      log
+    });
   }
 }
 

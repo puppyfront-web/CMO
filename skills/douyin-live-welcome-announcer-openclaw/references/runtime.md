@@ -27,6 +27,8 @@ The live-room URL is required. The runtime will not start without it.
 
 Gift detection listens to Douyin's webcast push WebSocket frames instead of scraping gift text from the DOM, so the live-room tab can stay visually unchanged while gifts are still announced.
 
+Comment analysis is stored per live run under `~/.douyin-live-welcome/sessions/`. Each session includes raw events plus generated `users.json`, `leads.json`, and `report.md` outputs after the watcher stops.
+
 Optional environment variables:
 
 - `DOUYIN_TTS_ENGINE`: `auto` | `edge` | `say`

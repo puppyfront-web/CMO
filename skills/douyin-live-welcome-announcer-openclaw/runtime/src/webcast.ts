@@ -1,6 +1,6 @@
 import zlib from "node:zlib";
 
-import { type GiftEvent, normalizeGiftName, normalizeNickname } from "./nickname.js";
+import { extractCommentEventFromText, type CommentEvent, type GiftEvent, normalizeGiftName, normalizeNickname } from "./nickname.js";
 
 interface ProtoField {
   fieldNumber: number;
@@ -12,7 +12,12 @@ export interface WebcastGiftEvent extends GiftEvent {
   summary: string;
 }
 
+export interface WebcastCommentEvent extends CommentEvent {
+  summary: string;
+}
+
 const GIFT_MESSAGE_NAME = "WebcastGiftMessage";
+const COMMENT_MESSAGE_NAME = "WebcastChatMessage";
 const DOUYIN_WEBCAST_PUSH_PATH = "/webcast/im/push/v2/";
 
 export function isDouyinWebcastPushSocketUrl(url: string): boolean {
@@ -26,6 +31,33 @@ export function extractGiftEventFromWebcastFrame(payload: Buffer | string): Webc
   }
 
   return extractGiftEventFromMessage(message);
+}
+
+export function extractCommentEventFromWebcastFrame(payload: Buffer | string): WebcastCommentEvent | null {
+  const message = findMessageByName(maybeGunzipFrame(asBuffer(payload)), COMMENT_MESSAGE_NAME);
+  if (!message) {
+    return null;
+  }
+
+  const fields = tryParseProtoFields(message);
+  if (!fields) {
+    return null;
+  }
+
+  const summary = decodeTextField(fields, 7)?.replace(/\s+/gu, " ").trim() ?? "";
+  if (!summary) {
+    return null;
+  }
+
+  const commentEvent = extractCommentEventFromText(summary);
+  if (!commentEvent) {
+    return null;
+  }
+
+  return {
+    ...commentEvent,
+    summary
+  };
 }
 
 function extractGiftEventFromMessage(message: Buffer): WebcastGiftEvent | null {
@@ -102,6 +134,10 @@ function isGiftCountMarker(text: string): boolean {
 }
 
 function findGiftMessage(buffer: Buffer, depth = 0): Buffer | null {
+  return findMessageByName(buffer, GIFT_MESSAGE_NAME, depth);
+}
+
+function findMessageByName(buffer: Buffer, messageName: string, depth = 0): Buffer | null {
   if (depth > 6) {
     return null;
   }
@@ -111,7 +147,7 @@ function findGiftMessage(buffer: Buffer, depth = 0): Buffer | null {
     return null;
   }
 
-  if (decodeTextField(fields, 1) === GIFT_MESSAGE_NAME && decodeTextField(fields, 7)) {
+  if (decodeTextField(fields, 1) === messageName && decodeTextField(fields, 7)) {
     return buffer;
   }
 
@@ -120,7 +156,7 @@ function findGiftMessage(buffer: Buffer, depth = 0): Buffer | null {
       continue;
     }
 
-    const nested = findGiftMessage(field.data, depth + 1);
+    const nested = findMessageByName(field.data, messageName, depth + 1);
     if (nested) {
       return nested;
     }

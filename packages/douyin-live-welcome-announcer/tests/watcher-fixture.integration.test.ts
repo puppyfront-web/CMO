@@ -6,6 +6,7 @@ import { pathToFileURL } from "node:url";
 import { afterEach, describe, expect, test } from "vitest";
 
 import {
+  findExistingWatchedPage,
   isDouyinLiveHomepage,
   isSameWatchedPage,
   shouldAutoNavigateToTargetRoom,
@@ -54,6 +55,27 @@ describe("shouldAutoNavigateToTargetRoom", () => {
 
   test("does not navigate for non-douyin targets", () => {
     expect(shouldAutoNavigateToTargetRoom("https://example.com/", "https://example.com/live")).toBe(false);
+  });
+});
+
+describe("findExistingWatchedPage", () => {
+  test("prefers an already-open target live room over the first restored tab", () => {
+    const restoredPages = [
+      { url: () => "https://www.douyin.com/user/self" },
+      { url: () => "https://live.douyin.com/812195156626?foo=1" },
+      { url: () => "https://live.douyin.com/" }
+    ];
+
+    expect(findExistingWatchedPage(restoredPages, "https://live.douyin.com/812195156626")).toBe(restoredPages[1]);
+  });
+
+  test("returns undefined when no restored tab matches the target room", () => {
+    const restoredPages = [
+      { url: () => "https://www.douyin.com/user/self" },
+      { url: () => "https://live.douyin.com/" }
+    ];
+
+    expect(findExistingWatchedPage(restoredPages, "https://live.douyin.com/812195156626")).toBeUndefined();
   });
 });
 
@@ -131,6 +153,67 @@ describe("fixture watcher", () => {
     });
   }, 15_000);
 
+  test("captures comment messages from DOM mutations as a fallback path", async () => {
+    const fixtureUrl = pathToFileURL(path.resolve("tests/fixtures/live-room.html")).toString();
+    userDataDir = await mkdtemp(path.join(os.tmpdir(), "douyin-live-welcome-test-"));
+    let resolveComment!: (entry: { nickname: string; comment?: string; kind: string }) => void;
+    const commentPromise = new Promise<{ nickname: string; comment?: string; kind: string }>((resolve) => {
+      resolveComment = resolve;
+    });
+
+    handle = await startWatcher({
+      url: fixtureUrl,
+      headless: true,
+      userDataDir,
+      logger: console.log,
+      onEntry: (entry) => {
+        if (entry.kind === "comment") {
+          resolveComment(entry);
+        }
+      }
+    });
+
+    await handle.page.evaluate(() => {
+      (window as typeof window & { appendEntryMessage: (text: string) => void }).appendEntryMessage("阿秋：怎么买课程");
+    });
+
+    await expect(commentPromise).resolves.toMatchObject({
+      kind: "comment",
+      nickname: "阿秋",
+      comment: "怎么买课程"
+    });
+  }, 15_000);
+
+  test("ignores DOM events emitted from a non-target page in the same browser context", async () => {
+    const fixtureUrl = pathToFileURL(path.resolve("tests/fixtures/live-room.html")).toString();
+    userDataDir = await mkdtemp(path.join(os.tmpdir(), "douyin-live-welcome-test-"));
+    const seenEntries: string[] = [];
+
+    handle = await startWatcher({
+      url: fixtureUrl,
+      headless: true,
+      userDataDir,
+      logger: console.log,
+      onEntry: (entry) => {
+        seenEntries.push(`${entry.kind}:${entry.nickname}:${entry.pageUrl}`);
+      }
+    });
+
+    const unrelatedPage = await handle.context.newPage();
+    await unrelatedPage.goto("data:text/html,<html><body><div id='root'></div></body></html>", {
+      waitUntil: "domcontentloaded"
+    });
+    await unrelatedPage.evaluate(() => {
+      const node = document.createElement("div");
+      node.textContent = "路人甲：怎么买课程";
+      document.body.appendChild(node);
+    });
+
+    await new Promise((resolve) => setTimeout(resolve, 400));
+    expect(seenEntries).toEqual([]);
+    await unrelatedPage.close();
+  }, 15_000);
+
   test("resolves the closed signal when the watched page is closed", async () => {
     const fixtureUrl = pathToFileURL(path.resolve("tests/fixtures/live-room.html")).toString();
     userDataDir = await mkdtemp(path.join(os.tmpdir(), "douyin-live-welcome-test-"));
@@ -147,5 +230,49 @@ describe("fixture watcher", () => {
     await handle.page.close();
 
     await expect(closedPromise).resolves.toBeUndefined();
+  }, 15_000);
+
+  test("keeps watching when the live room continues in a replacement tab", async () => {
+    const fixtureUrl = pathToFileURL(path.resolve("tests/fixtures/live-room.html")).toString();
+    userDataDir = await mkdtemp(path.join(os.tmpdir(), "douyin-live-welcome-test-"));
+    let resolveEntry!: (nickname: string) => void;
+    const entryPromise = new Promise<string>((resolve) => {
+      resolveEntry = resolve;
+    });
+
+    handle = await startWatcher({
+      url: fixtureUrl,
+      headless: true,
+      userDataDir,
+      logger: console.log,
+      onEntry: (entry) => {
+        if (entry.kind === "join") {
+          resolveEntry(entry.nickname);
+        }
+      }
+    });
+
+    const originalPage = handle.page;
+    const replacementPage = await handle.context.newPage();
+    await replacementPage.goto(fixtureUrl, { waitUntil: "domcontentloaded" });
+    await originalPage.close();
+
+    const watcherState = await Promise.race([
+      handle.closed.then(() => "closed"),
+      new Promise<"open">((resolve) => {
+        setTimeout(() => resolve("open"), 600);
+      })
+    ]);
+
+    expect(watcherState).toBe("open");
+    expect(handle.page).toBe(replacementPage);
+
+    await replacementPage.evaluate(() => {
+      (window as typeof window & { appendEntryMessage: (text: string) => void }).appendEntryMessage(
+        "阿秋 进入了直播间"
+      );
+    });
+
+    await expect(entryPromise).resolves.toBe("阿秋");
   }, 15_000);
 });

@@ -1,6 +1,7 @@
 import { describe, expect, test } from "vitest";
 
 import {
+  extractCommentEventFromText,
   extractGiftEventFromText,
   extractGiftNicknameFromText,
   extractNicknameFromText,
@@ -94,6 +95,28 @@ describe("extractGiftEventFromText", () => {
   test("returns null for non-gift text", () => {
     expect(extractGiftEventFromText("阿秋 来了")).toBeNull();
     expect(extractGiftEventFromText("LuoLuo： 出了")).toBeNull();
+  });
+});
+
+describe("extractCommentEventFromText", () => {
+  test("extracts nickname and comment from chat-style text", () => {
+    expect(extractCommentEventFromText("阿秋：怎么买课程")).toEqual({
+      nickname: "阿秋",
+      comment: "怎么买课程"
+    });
+    expect(extractCommentEventFromText("LuoLuo: 可以合作吗")).toEqual({
+      nickname: "LuoLuo",
+      comment: "可以合作吗"
+    });
+  });
+
+  test("rejects gift and join text", () => {
+    expect(extractCommentEventFromText("阿秋 送出了 小心心")).toBeNull();
+    expect(extractCommentEventFromText("阿秋 进入了直播间")).toBeNull();
+  });
+
+  test("rejects text without a clear chat separator", () => {
+    expect(extractCommentEventFromText("怎么买课程")).toBeNull();
   });
 });
 

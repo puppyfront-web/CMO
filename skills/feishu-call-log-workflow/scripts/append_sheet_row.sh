@@ -13,4 +13,5 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/common.sh"
 
 ensure_node_env
-lark-cli sheets +append --url "$SHEET_URL" --values "[$ROW_JSON]"
+VALIDATED_ROW_JSON="$(/usr/bin/python3 "$SCRIPT_DIR/validate_row.py" validate "$ROW_JSON")"
+lark-cli sheets +append --url "$SHEET_URL" --values "[$VALIDATED_ROW_JSON]"

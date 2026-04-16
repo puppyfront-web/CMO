@@ -3,19 +3,27 @@ import path from "node:path";
 
 import { chromium, type BrowserContext, type Page } from "playwright";
 
-import { extractGiftEventFromText, extractNicknameFromText } from "./nickname.js";
+import { extractCommentEventFromText, extractGiftEventFromText, extractNicknameFromText } from "./nickname.js";
 import { buildObserverScript } from "./observer-script.js";
-import { extractGiftEventFromWebcastFrame, isDouyinWebcastPushSocketUrl } from "./webcast.js";
+import { extractCommentEventFromWebcastFrame, extractGiftEventFromWebcastFrame, isDouyinWebcastPushSocketUrl } from "./webcast.js";
 
-export type WatcherEventKind = "join" | "gift";
+export type WatcherEventKind = "join" | "gift" | "comment";
 
 export interface WatcherEntry {
   kind: WatcherEventKind;
   nickname: string;
   gift?: string;
+  comment?: string;
+  profileUrl?: string;
+  source?: "websocket" | "dom";
   rawText: string;
   detectedAt: string;
   pageUrl: string;
+}
+
+interface ObserverCandidate {
+  text: string;
+  hrefs?: string[];
 }
 
 export interface StartWatcherOptions {
@@ -30,7 +38,7 @@ export interface StartWatcherOptions {
 
 export interface WatcherHandle {
   context: BrowserContext;
-  page: Page;
+  readonly page: Page;
   closed: Promise<void>;
   stop: () => Promise<void>;
   pause: () => void;
@@ -99,21 +107,39 @@ export function shouldAutoNavigateToTargetRoom(currentUrl: string, targetUrl: st
   return isDouyinLiveHomepage(currentUrl) && !isSameWatchedPage(currentUrl, targetUrl);
 }
 
+export function findExistingWatchedPage<T extends { url(): string }>(pages: T[], targetUrl: string): T | undefined {
+  return pages.find((page) => isSameWatchedPage(page.url(), targetUrl));
+}
+
+function shouldHandlePageEvent(pageUrl: string, targetUrl: string): boolean {
+  return isSameWatchedPage(pageUrl, targetUrl) && !isDouyinLiveHomepage(pageUrl);
+}
+
 function defaultUserDataDir(): string {
   return path.join(os.homedir(), ".douyin-live-welcome", "browser-profile");
 }
 
 export async function startWatcher(options: StartWatcherOptions): Promise<WatcherHandle> {
   let paused = false;
+  let activePage!: Page;
   let autoNavigateTimer: NodeJS.Timeout | undefined;
+  let pendingCloseTimer: NodeJS.Timeout | undefined;
   let closedResolved = false;
   let resolveClosed!: () => void;
   const logger = options.logger ?? (() => {});
   const userDataDir = options.userDataDir ?? defaultUserDataDir();
   const observerScript = buildObserverScript(BINDING_NAME);
+  const registeredPages = new WeakSet<Page>();
   const closed = new Promise<void>((resolve) => {
     resolveClosed = resolve;
   });
+
+  const clearPendingCloseTimer = (): void => {
+    if (pendingCloseTimer) {
+      clearTimeout(pendingCloseTimer);
+      pendingCloseTimer = undefined;
+    }
+  };
 
   const markClosed = (): void => {
     if (closedResolved) {
@@ -121,6 +147,7 @@ export async function startWatcher(options: StartWatcherOptions): Promise<Watche
     }
 
     closedResolved = true;
+    clearPendingCloseTimer();
 
     if (autoNavigateTimer) {
       clearInterval(autoNavigateTimer);
@@ -136,21 +163,155 @@ export async function startWatcher(options: StartWatcherOptions): Promise<Watche
     args: ["--disable-blink-features=AutomationControlled"]
   });
 
-  await context.exposeBinding(BINDING_NAME, async (_source, payload: unknown) => {
+  const findReplacementPage = (): Page | undefined => {
+    return findExistingWatchedPage(
+      context.pages().filter((page) => !page.isClosed()),
+      options.url
+    );
+  };
+
+  const activatePage = (page: Page, reason?: string): void => {
+    clearPendingCloseTimer();
+    if (activePage === page) {
+      return;
+    }
+
+    activePage = page;
+    if (reason) {
+      logger(reason);
+    }
+  };
+
+  const scheduleCloseAfterPageClose = (): void => {
+    clearPendingCloseTimer();
+    pendingCloseTimer = setTimeout(() => {
+      const replacementPage = findReplacementPage();
+      if (replacementPage) {
+        activatePage(replacementPage, `检测到直播页已切换：${replacementPage.url()}`);
+        return;
+      }
+
+      logger("监听页面已关闭。");
+      markClosed();
+    }, 750);
+  };
+
+  const ensureObserverInstalled = async (page: Page): Promise<void> => {
+    await installObserver(page, observerScript);
+    await waitForObserverReady(page);
+  };
+
+  const registerPage = (page: Page): void => {
+    if (registeredPages.has(page)) {
+      return;
+    }
+
+    registeredPages.add(page);
+
+    page.on("crash", () => {
+      if (page === activePage) {
+        logger("监听页面崩溃，请重启程序。");
+      }
+    });
+
+    page.on("close", () => {
+      if (page === activePage) {
+        scheduleCloseAfterPageClose();
+      }
+    });
+
+    page.on("websocket", (websocket) => {
+      if (!isDouyinWebcastPushSocketUrl(websocket.url())) {
+        return;
+      }
+
+      websocket.on("framereceived", ({ payload }) => {
+        void (async () => {
+          if (paused) {
+            return;
+          }
+
+          if (!shouldHandlePageEvent(page.url(), options.url)) {
+            return;
+          }
+
+          const giftEvent = extractGiftEventFromWebcastFrame(
+            Buffer.isBuffer(payload) ? payload : Buffer.from(String(payload))
+          );
+          if (!giftEvent) {
+            const commentEvent = extractCommentEventFromWebcastFrame(
+              Buffer.isBuffer(payload) ? payload : Buffer.from(String(payload))
+            );
+            if (!commentEvent) {
+              return;
+            }
+
+            await options.onEntry({
+              kind: "comment",
+              nickname: commentEvent.nickname,
+              comment: commentEvent.comment,
+              rawText: commentEvent.summary,
+              detectedAt: new Date().toISOString(),
+              pageUrl: page.url(),
+              source: "websocket"
+            });
+            return;
+          }
+
+          await options.onEntry({
+            kind: "gift",
+            nickname: giftEvent.nickname,
+            gift: giftEvent.gift,
+            rawText: giftEvent.summary,
+            detectedAt: new Date().toISOString(),
+            pageUrl: page.url(),
+            source: "websocket"
+          });
+        })().catch((error) => {
+          logger(`解析礼物 WebSocket 帧失败：${String(error)}`);
+        });
+      });
+    });
+
+    page.on("framenavigated", (frame) => {
+      if (frame !== page.mainFrame()) {
+        return;
+      }
+
+      if (page === activePage || isSameWatchedPage(page.url(), options.url)) {
+        logger(`页面已跳转：${page.url()}`);
+      }
+
+      if (isSameWatchedPage(page.url(), options.url) && page !== activePage) {
+        activatePage(page, `检测到直播页已切换：${page.url()}`);
+      }
+    });
+
+    page.on("domcontentloaded", () => {
+      void ensureObserverInstalled(page).catch(() => {});
+    });
+  };
+
+  await context.exposeBinding(BINDING_NAME, async (source, payload: unknown) => {
     if (paused) {
       return;
     }
 
-    const texts = Array.isArray(payload) ? payload : [payload];
-    const normalizedTexts = texts
-      .map((candidate) => String(candidate ?? "").trim())
-      .filter(Boolean);
+    const sourcePage = source.page ?? activePage;
+    const sourcePageUrl = sourcePage?.url() ?? activePage.url();
+    if (!shouldHandlePageEvent(sourcePageUrl, options.url)) {
+      return;
+    }
+
+    const candidates = normalizeObserverCandidates(payload);
+    const normalizedTexts = candidates.map((candidate) => candidate.text);
 
     if (normalizedTexts.length > 0) {
       options.onCandidateTexts?.(normalizedTexts);
     }
 
-    for (const rawText of normalizedTexts) {
+    for (const candidate of candidates) {
+      const rawText = candidate.text;
       if (!rawText) {
         continue;
       }
@@ -163,7 +324,23 @@ export async function startWatcher(options: StartWatcherOptions): Promise<Watche
           gift: giftEvent.gift,
           rawText,
           detectedAt: new Date().toISOString(),
-          pageUrl: page.url()
+          pageUrl: sourcePageUrl,
+          source: "dom"
+        });
+        continue;
+      }
+
+      const commentEvent = extractCommentEventFromText(rawText);
+      if (commentEvent) {
+        await options.onEntry({
+          kind: "comment",
+          nickname: commentEvent.nickname,
+          comment: commentEvent.comment,
+          profileUrl: resolveProfileUrl(candidate.hrefs, sourcePageUrl),
+          rawText,
+          detectedAt: new Date().toISOString(),
+          pageUrl: sourcePageUrl,
+          source: "dom"
         });
         continue;
       }
@@ -178,94 +355,53 @@ export async function startWatcher(options: StartWatcherOptions): Promise<Watche
         nickname: joinNickname,
         rawText,
         detectedAt: new Date().toISOString(),
-        pageUrl: page.url()
+        pageUrl: sourcePageUrl,
+        source: "dom"
       });
     }
   });
 
   await context.addInitScript({ content: observerScript });
-
-  const page = context.pages()[0] ?? (await context.newPage());
-
-  page.on("crash", () => {
-    logger("监听页面崩溃，请重启程序。");
-  });
-
-  page.on("close", () => {
-    logger("监听页面已关闭。");
-    markClosed();
-  });
+  context.on("page", registerPage);
 
   context.on("close", () => {
     markClosed();
   });
 
-  page.on("websocket", (websocket) => {
-    if (!isDouyinWebcastPushSocketUrl(websocket.url())) {
-      return;
-    }
+  for (const page of context.pages()) {
+    registerPage(page);
+  }
 
-    websocket.on("framereceived", ({ payload }) => {
-      void (async () => {
-        if (paused) {
-          return;
-        }
+  const existingWatchedPage = findExistingWatchedPage(context.pages(), options.url);
+  activePage = existingWatchedPage ?? (await context.newPage());
+  registerPage(activePage);
 
-        const giftEvent = extractGiftEventFromWebcastFrame(
-          Buffer.isBuffer(payload) ? payload : Buffer.from(String(payload))
-        );
-        if (!giftEvent) {
-          return;
-        }
-
-        await options.onEntry({
-          kind: "gift",
-          nickname: giftEvent.nickname,
-          gift: giftEvent.gift,
-          rawText: giftEvent.summary,
-          detectedAt: new Date().toISOString(),
-          pageUrl: page.url()
-        });
-      })().catch((error) => {
-        logger(`解析礼物 WebSocket 帧失败：${String(error)}`);
-      });
+  if (existingWatchedPage) {
+    await ensureObserverInstalled(activePage);
+  } else {
+    await activePage.goto(options.launchUrl ?? options.url, {
+      waitUntil: "domcontentloaded"
     });
-  });
-
-  page.on("framenavigated", (frame) => {
-    if (frame === page.mainFrame()) {
-      logger(`页面已跳转：${page.url()}`);
-    }
-  });
-
-  await page.goto(options.launchUrl ?? options.url, {
-    waitUntil: "domcontentloaded"
-  });
-
-  await installObserver(page, observerScript);
-  await waitForObserverReady(page);
-
-  page.on("domcontentloaded", () => {
-    void installObserver(page, observerScript)
-      .then(() => waitForObserverReady(page))
-      .catch(() => {});
-  });
+    await ensureObserverInstalled(activePage);
+  }
 
   if (options.launchUrl && options.launchUrl !== options.url) {
     autoNavigateTimer = setInterval(() => {
-      const currentUrl = page.url();
+      const currentUrl = activePage.url();
       if (!shouldAutoNavigateToTargetRoom(currentUrl, options.url)) {
         return;
       }
 
       logger(`检测到仍在首页，正在自动进入指定直播间：${options.url}`);
-      void page.goto(options.url, { waitUntil: "domcontentloaded" }).catch(() => {});
+      void activePage.goto(options.url, { waitUntil: "domcontentloaded" }).catch(() => {});
     }, 3_000);
   }
 
   return {
     context,
-    page,
+    get page() {
+      return activePage;
+    },
     closed,
     stop: async () => {
       markClosed();
@@ -281,6 +417,44 @@ export async function startWatcher(options: StartWatcherOptions): Promise<Watche
     },
     isPaused: () => paused
   };
+}
+
+function normalizeObserverCandidates(payload: unknown): ObserverCandidate[] {
+  const items = Array.isArray(payload) ? payload : [payload];
+
+  return items
+    .map((item) => {
+      if (item && typeof item === "object" && "text" in item) {
+        const candidate = item as { text?: unknown; hrefs?: unknown };
+        return {
+          text: String(candidate.text ?? "").trim(),
+          hrefs: Array.isArray(candidate.hrefs)
+            ? candidate.hrefs.map((href) => String(href ?? "").trim()).filter(Boolean)
+            : []
+        };
+      }
+
+      return {
+        text: String(item ?? "").trim(),
+        hrefs: []
+      };
+    })
+    .filter((candidate) => Boolean(candidate.text));
+}
+
+function resolveProfileUrl(hrefs: string[] | undefined, pageUrl: string): string | undefined {
+  for (const href of hrefs ?? []) {
+    try {
+      const normalized = new URL(href, pageUrl).href;
+      if (/douyin\.com\/user\//u.test(normalized)) {
+        return normalized;
+      }
+    } catch {
+      continue;
+    }
+  }
+
+  return undefined;
 }
 
 async function installObserver(page: Page, observerScript: string): Promise<void> {

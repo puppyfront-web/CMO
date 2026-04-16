@@ -5,39 +5,121 @@
 Turn one call recording into:
 
 1. Transcript
-2. Structured row with fixed fields
+2. Structured spreadsheet row
 3. Pure mind-map Feishu document
-4. Spreadsheet append
+4. Demand document
+5. Quotation spreadsheet
 
 ## Artifact contract
 
 Recommended runtime artifacts:
 
+- `sheet-target.json`
 - `transcript.txt`
 - `analysis.json`
 - `mindmap.mmd`
-- `feishu-doc.json`
+- `demand.md`
+- `quotation-sheet-data.json`
+- `mindmap-doc.json`
+- `demand-doc.json`
+- `quotation-sheet.json`
+- `sheet-row.json`
 - `feishu-sheet.json`
+
+## Agent topology
+
+Current topology:
+
+1. entry agent
+   - `agents/openai.yaml`
+   - receives the user task and invokes the workflow skill
+2. stage agents / stage workers
+   - the workflow stages under `stages/README.md`
+   - agent-backed stages currently include:
+     - `extract-fields`
+     - `build-mindmap`
+     - `create-demand-doc`
+     - `create-quotation-sheet`
+   - script-backed stages currently include:
+     - `resolve-sheet`
+     - `transcribe-audio`
+     - `create-mindmap-doc`
+     - `append-sheet-row`
+
+This workflow is already organized as a workflow-ready composition of one entry agent plus multiple stage workers, with the stage contract carried by artifacts.
+
+## Agent handoff contract
+
+- entry agent -> stage workers
+  - handoff medium:
+    - declared artifacts
+    - stage-local context files
+- stage worker -> next stage worker
+  - handoff medium:
+    - `sheet-target.json`
+    - `transcript.txt`
+    - `analysis.json`
+    - `mindmap.mmd`
+    - `mindmap-doc.json`
+    - `demand.md`
+    - `demand-doc.json`
+    - `quotation-sheet-data.json`
+    - `quotation-sheet.json`
+    - `sheet-row.json`
+    - `feishu-sheet.json`
+
+## Context Engineering
+
+This workflow is context-engineered per stage, not only per workflow.
+
+Global context:
+
+- `PROMPT.md`
+
+Stage-local context:
+
+- `context/stage-context.json`
+- `context/resolve-sheet.md`
+- `context/transcribe-audio.md`
+- `context/extract-fields.md`
+- `context/build-mindmap.md`
+- `context/create-mindmap-doc.md`
+- `context/create-demand-doc.md`
+- `context/create-quotation-sheet.md`
+- `context/append-sheet-row.md`
+
+Loading rule:
+
+1. Load `PROMPT.md`
+2. Load `context/stage-context.json`
+3. Load the current stage file
+4. Load only the artifacts declared for that stage
+
+Do not pass the entire workflow state into every stage by default.
 
 ## Stages
 
-### Stage 1: Input
+### Stage 1: `resolve-sheet`
 
-Input is a local audio file.
+Resolve or create the spreadsheet target for this run.
 
-Extension point:
-- add future adapters for WeChat export folders, call archive folders, batch imports
+Stage context:
 
-### Stage 2: Local transcription
+- `context/resolve-sheet.md`
 
-Use `scripts/transcribe_local.sh`.
+Primary artifact:
 
-Extension point:
-- add audio cleanup
-- add diarization
-- add alternate local ASR engines
+- `sheet-target.json`
 
-### Stage 3: OpenClaw analysis
+### Stage 2: `transcribe-audio`
+
+Use `scripts/transcribe_local.sh` to turn one local audio file into `transcript.txt`.
+
+Stage context:
+
+- `context/transcribe-audio.md`
+
+### Stage 3: `extract-fields`
 
 The OpenClaw agent reads the transcript and extracts:
 
@@ -49,90 +131,103 @@ The OpenClaw agent reads the transcript and extracts:
 - `对接阶段`
 - `备注`
 
-Extension point:
-- add richer CRM fields
-- add sentiment or urgency scoring
-- add industry tagging normalization
+Stage context:
 
-### Stage 4: Mind-map generation
+- `context/extract-fields.md`
+
+Primary artifact:
+
+- `analysis.json`
+
+### Stage 4: `build-mindmap`
 
 The OpenClaw agent writes Mermaid `mindmap` syntax.
 
-Extension point:
-- add domain-specific map templates
-- add branch naming policies
-- add visual themes
+Stage context:
 
-### Stage 5: Feishu outputs
+- `context/build-mindmap.md`
 
-- create or reuse target spreadsheet
-- create pure mind-map document
-- append row
+Primary artifact:
 
-Extension point:
-- add notification sinks
-- add CRM / Base sync
-- add archive export
+- `mindmap.mmd`
 
-## Extensions
+### Stage 5: `create-mindmap-doc`
 
-The workflow can be extended without replacing the core skill or core stages:
+Create the pure Feishu mind-map document from `mindmap.mmd`.
 
-- `extensions/pre-transcribe.d/` for input expansion and audio preprocessing
-- `extensions/post-transcribe.d/` for transcript cleanup and enrichment
-- `extensions/post-analysis.d/` for CRM normalization, scoring, or extra outputs
-- `extensions/post-write.d/` for notifications, syncs, and archives
+Stage context:
 
-Each extension should treat prior artifacts as inputs and append new artifacts into the same run directory.
+- `context/create-mindmap-doc.md`
 
-## How to insert a new node
+Primary artifact:
 
-### Add a new normal workflow node
+- `mindmap-doc.json`
 
-Do this when the node is part of the mandatory path for every run.
+### Stage 6: `create-demand-doc`
 
-Examples:
+The OpenClaw agent writes `demand.md`.
 
-- replace current local transcription with a new ASR stage
-- insert `validate-analysis` before mind-map creation
-- insert `normalize-industry` before sheet append
+The demand document must include:
 
-Rule:
-- update the stage sequence in this file
-- add or update the implementation script
-- keep file-based artifact handoff stable
+- 客户背景
+- 客户需求
+- 整体技术架构设计
 
-### Add a new agent node
+This stage should behave like a `需求分析师 + 解决方案架构师` joint output:
 
-Do this when the node needs reasoning.
+- identify the real business scope and complexity from the recording
+- produce a right-sized solution design instead of a generic oversized architecture
 
-Examples:
+Stage context:
 
-- lead scoring
-- objection classification
-- follow-up action planning
-- quote drafting
+- `context/create-demand-doc.md`
 
-Pattern:
-- read current artifacts
-- let OpenClaw or another agent produce a deterministic file
-- save it beside existing artifacts
+Primary artifacts:
 
-### Add a new sub-workflow node
+- `demand.md`
+- `demand-doc.json`
 
-Do this when the node is itself a reusable mini-process.
+### Stage 7: `create-quotation-sheet`
 
-Examples:
+The OpenClaw agent writes `quotation-sheet-data.json`.
 
-- CRM sync workflow
-- notification workflow
-- quotation generation workflow
-- task creation workflow
+The quotation sheet must be based on the demand document and current market pricing calibration. It should provide:
 
-Pattern:
-- keep the parent workflow stable
-- call the sub-workflow from an extension or a dedicated stage
-- exchange data through artifact files or stable JSON payloads
+- 基础版
+- 高级版
+- 旗舰版
+
+Each tier should include scope, deliverables, assumptions, schedule, pricing, and exclusions.
+
+This stage must price according to the inferred complexity level from the recording and the demand analysis, so lightweight needs stay lightweight and genuinely complex needs can be priced higher with explicit justification.
+
+Default pricing posture:
+
+- if the project looks like a small custom tool, teaching aid, lightweight automation, or MVP validation, quote conservatively
+- do not default to large productized-system pricing
+- only move into higher ranges when complexity clearly includes multi-system integration, local deployment hardening, large-scale data treatment, or long-term product-style delivery
+
+Stage context:
+
+- `context/create-quotation-sheet.md`
+
+Primary artifacts:
+
+- `quotation-sheet-data.json`
+- `quotation-sheet.json`
+
+### Stage 8: `append-sheet-row`
+
+Assemble the final row and append it to the resolved spreadsheet.
+
+Stage context:
+
+- `context/append-sheet-row.md`
+
+Primary artifacts:
+
+- `sheet-row.json`
+- `feishu-sheet.json`
 
 ## Spreadsheet target rules
 
@@ -151,17 +246,39 @@ Pattern:
 - `对接阶段`
 - `打电话录音脑图`
 - `备注`
+- `需求文档`
+- `报价表`
 
-Rule:
+Rules:
+
 - `打电话录音脑图` only stores the Feishu document link
-- `备注` stores important extra findings, risks, constraints, or follow-up context that do not belong in the base fields
+- `备注` stores important extra findings, risks, constraints, or follow-up context
+- `需求文档` stores the generated demand document link
+- `报价表` stores the generated quotation spreadsheet link
 
-## Mind-map document rules
+## Document title rules
 
-- one new document per call
-- title format: `客户名-行业-日期`
-- fallbacks:
+Mind-map title:
+
+- `客户名-行业-日期`
+- fallback:
   - `客户名-通话脑图-日期`
   - `行业-通话脑图-日期`
   - `通话脑图-日期`
-- document content should be only one whiteboard / mind-map, no extra prose
+
+Demand document title:
+
+- `客户名-行业-需求文档-日期`
+
+Quotation document title:
+
+- `客户名-行业-报价表-日期`
+
+## Extensions
+
+The workflow can be extended without replacing the core skill or core stages:
+
+- `extensions/pre-transcribe.d/`
+- `extensions/post-transcribe.d/`
+- `extensions/post-analysis.d/`
+- `extensions/post-write.d/`

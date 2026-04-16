@@ -1,6 +1,10 @@
 import { describe, expect, test } from "vitest";
 
-import { extractGiftEventFromWebcastFrame, isDouyinWebcastPushSocketUrl } from "../src/webcast.js";
+import {
+  extractCommentEventFromWebcastFrame,
+  extractGiftEventFromWebcastFrame,
+  isDouyinWebcastPushSocketUrl
+} from "../src/webcast.js";
 
 const GIFT_FRAME_BASE64 = [
   "CBAQoLX2sNfb3ZMLGLhFIAgqFQoNY29tcHJlc3NfdHlwZRIEZ3ppcCpvCg9pbS1pbnRlcm5hbF9leHQSXGludGVybmFsX3NyYzpwdXNoc2VydmVyfGZpcnN0",
@@ -94,6 +98,13 @@ function createGiftFrame(summary: string, slotTexts: string[]): Buffer {
   ]);
 }
 
+function createChatFrame(summary: string): Buffer {
+  return Buffer.concat([
+    encodeLengthDelimited(1, "WebcastChatMessage"),
+    encodeLengthDelimited(7, summary)
+  ]);
+}
+
 describe("isDouyinWebcastPushSocketUrl", () => {
   test("matches the live webcast push socket endpoint", () => {
     expect(isDouyinWebcastPushSocketUrl("wss://webcast5-ws-web-lq.douyin.com/webcast/im/push/v2/?foo=1")).toBe(true);
@@ -122,5 +133,21 @@ describe("extractGiftEventFromWebcastFrame", () => {
     const frame = createGiftFrame("x1 小心心", ["x1", "小心心"]);
 
     expect(extractGiftEventFromWebcastFrame(frame)).toBeNull();
+  });
+});
+
+describe("extractCommentEventFromWebcastFrame", () => {
+  test("extracts nickname and comment from a websocket chat frame", () => {
+    const frame = createChatFrame("阿秋：怎么买课程");
+
+    expect(extractCommentEventFromWebcastFrame(frame)).toEqual({
+      nickname: "阿秋",
+      comment: "怎么买课程",
+      summary: "阿秋：怎么买课程"
+    });
+  });
+
+  test("returns null for non-chat websocket frames", () => {
+    expect(extractCommentEventFromWebcastFrame(decodeFrame(GIFT_FRAME_BASE64))).toBeNull();
   });
 });

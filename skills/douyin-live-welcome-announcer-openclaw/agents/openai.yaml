@@ -1,7 +1,7 @@
 interface:
-  display_name: "Douyin Welcome"
-  short_description: "Speak viewer join welcomes for a Douyin live room on macOS."
-  default_prompt: "Use $douyin_live_welcome_announcer to launch spoken welcome announcements for my Douyin live room."
+  display_name: "Douyin Lead Workflow"
+  short_description: "Announce gifts during a Douyin live and generate a post-live lead report from comments."
+  default_prompt: "Use $douyin_live_welcome_announcer to run my Douyin live gift announcement and post-live comment lead-analysis workflow."
 
 policy:
   allow_implicit_invocation: true

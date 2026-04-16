@@ -32,6 +32,13 @@ export interface GiftEvent {
   gift: string;
 }
 
+export interface CommentEvent {
+  nickname: string;
+  comment: string;
+}
+
+const COMMENT_PATTERN = /^(?<nickname>[^:：]{1,40}?)\s*[:：]\s*(?<comment>.+)$/u;
+
 export function normalizeNickname(input: string): string {
   return input
     .trim()
@@ -156,6 +163,48 @@ export function extractGiftEventFromText(text: string): GiftEvent | null {
 
 export function extractGiftNicknameFromText(text: string): string | null {
   return extractGiftEventFromText(text)?.nickname ?? null;
+}
+
+export function extractCommentEventFromText(text: string): CommentEvent | null {
+  const lines = text
+    .split(/\r?\n/u)
+    .map((line) => line.trim())
+    .filter(Boolean);
+
+  for (const line of lines) {
+    const compactLine = line.replace(/\s+/gu, " ").trim();
+
+    if (!compactLine || compactLine.length > 120) {
+      continue;
+    }
+
+    if (extractGiftEventFromText(compactLine) || extractNicknameFromText(compactLine)) {
+      continue;
+    }
+
+    const match = compactLine.match(COMMENT_PATTERN);
+    const nickname = match?.groups?.nickname;
+    const comment = match?.groups?.comment?.trim();
+    if (!nickname || !comment) {
+      continue;
+    }
+
+    const normalizedNickname = normalizeNickname(nickname);
+    if (
+      !normalizedNickname ||
+      DISALLOWED_NICKNAMES.has(normalizedNickname) ||
+      DISALLOWED_SUBSTRINGS.some((item) => normalizedNickname.includes(item))
+    ) {
+      continue;
+    }
+
+    return {
+      nickname: normalizedNickname,
+      comment: comment.replace(/\s+/gu, " ").trim()
+    };
+  }
+
+  return null;
 }
 
 export function renderWelcomeMessage(template: string, nickname: string, gift = "礼物"): string {

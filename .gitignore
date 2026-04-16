@@ -22,6 +22,10 @@ tmp/
 # Local-only research and delivery artifacts
 deliverables/
 tmp_ws/
+.worktrees/
+output.png
+docs/superpowers/plans/
+docs/superpowers/specs/
 
 # Local environment files
 .env

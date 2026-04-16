@@ -1,7 +1,7 @@
 interface:
   display_name: "Feishu Call Log Workflow"
-  short_description: "Analyze call audio, create a pure mind-map doc, and append one row into Feishu Sheets."
-  default_prompt: "Use $feishu-call-log-workflow, follow its built-in PROMPT.md contract, analyze this call recording, and write the result into my Feishu call log sheet."
+  short_description: "Analyze call audio, create a mind-map, demand doc, and quotation sheet, then append one row into Feishu Sheets."
+  default_prompt: "Use $feishu-call-log-workflow, follow its built-in PROMPT.md contract, analyze this call recording, create the mind-map, demand document, and quotation spreadsheet, and write the result into my Feishu call log sheet."
 
 policy:
   allow_implicit_invocation: true

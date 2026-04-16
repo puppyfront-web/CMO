@@ -1,0 +1,60 @@
+{
+  "workflow": "feishu-call-log-workflow",
+  "globalPrompt": "PROMPT.md",
+  "stages": [
+    {
+      "stage": "resolve-sheet",
+      "contextFile": "context/resolve-sheet.md",
+      "inputs": [],
+      "outputs": ["sheet-target.json"]
+    },
+    {
+      "stage": "transcribe-audio",
+      "contextFile": "context/transcribe-audio.md",
+      "inputs": ["audio-file-path", "sheet-target.json"],
+      "outputs": ["transcript.txt"]
+    },
+    {
+      "stage": "extract-fields",
+      "contextFile": "context/extract-fields.md",
+      "inputs": ["transcript.txt"],
+      "outputs": ["analysis.json"]
+    },
+    {
+      "stage": "build-mindmap",
+      "contextFile": "context/build-mindmap.md",
+      "inputs": ["transcript.txt", "analysis.json"],
+      "outputs": ["mindmap.mmd"]
+    },
+    {
+      "stage": "create-mindmap-doc",
+      "contextFile": "context/create-mindmap-doc.md",
+      "inputs": ["mindmap.mmd", "analysis.json"],
+      "outputs": ["mindmap-doc.json"]
+    },
+    {
+      "stage": "create-demand-doc",
+      "contextFile": "context/create-demand-doc.md",
+      "inputs": ["transcript.txt", "analysis.json"],
+      "outputs": ["demand.md", "demand-doc.json"]
+    },
+    {
+      "stage": "create-quotation-sheet",
+      "contextFile": "context/create-quotation-sheet.md",
+      "inputs": ["analysis.json", "demand.md"],
+      "outputs": ["quotation-sheet-data.json", "quotation-sheet.json"]
+    },
+    {
+      "stage": "append-sheet-row",
+      "contextFile": "context/append-sheet-row.md",
+      "inputs": [
+        "sheet-target.json",
+        "analysis.json",
+        "mindmap-doc.json",
+        "demand-doc.json",
+        "quotation-sheet.json"
+      ],
+      "outputs": ["sheet-row.json", "feishu-sheet.json"]
+    }
+  ]
+}

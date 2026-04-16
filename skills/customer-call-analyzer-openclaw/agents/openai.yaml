@@ -1,0 +1,7 @@
+interface:
+  display_name: "Customer Call Analyzer"
+  short_description: "Transcribe a customer-call recording and write structured results into Feishu Sheets."
+  default_prompt: "Use $customer_call_analyzer to analyze this customer call recording and write the result into Feishu."
+
+policy:
+  allow_implicit_invocation: true

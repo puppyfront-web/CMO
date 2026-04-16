@@ -24,6 +24,9 @@ Use extensions when you want to insert extra capability without rewriting the co
 - `transcript.txt`
 - `analysis.json`
 - `mindmap.mmd`
+- `demand.md`
+- `quotation-sheet-data.json`
+- `quotation-sheet.json`
 - `feishu-doc.json`
 - `feishu-sheet.json`
 

@@ -1,18 +1,18 @@
 ---
 name: douyin_live_welcome_announcer
-description: Use when an OpenClaw user wants spoken nickname announcements for Douyin live-room gift senders on macOS or Windows, especially when monitoring the live room in a browser and needing natural TTS with digit-by-digit nickname reading.
+description: Use when an OpenClaw user wants Douyin live-room gift announcements plus a post-live comment lead-analysis workflow on macOS or Windows.
 metadata: {"openclaw":{"skillKey":"douyin_live_welcome_announcer","emoji":"🎙️","requires":{"bins":["node","npm","python3"],"os":["darwin","win32"]}}}
 ---
 
 # Douyin Live Welcome Announcer
 
-This skill packages a self-contained Douyin live-room watcher for OpenClaw users on macOS and Windows. It opens a Playwright-controlled Chromium page, detects gift messages such as `某某送出了礼物`, and speaks a nickname line with `edge-tts` first and the system local TTS as fallback.
+This skill packages a self-contained Douyin live-room watcher for OpenClaw users on macOS and Windows. It opens a Playwright-controlled Chromium page, detects gift messages such as `某某送出了礼物`, records comment activity during the stream, and runs a local lead-analysis workflow when the live ends.
 
 Gift events are taken from Douyin's webcast push WebSocket frames, which is more stable than relying on transient DOM gift text.
 
 ## Use this skill when
 
-- The user is live on Douyin and wants spoken nickname announcements only for viewers who send gifts.
+- The user is live on Douyin and wants spoken gift announcements plus a local post-live potential-customer report.
 - The user is on macOS or Windows and can keep a browser window open on the actual live room page.
 - The user wants better TTS quality than plain system `say`.
 
@@ -40,6 +40,7 @@ bash "$SKILL_DIR/scripts/run.sh" "https://live.douyin.com/你的直播间"
 ```
 
 3. If the page leaves the provided live-room URL, the watcher will ignore events until it returns to that same room.
+4. When the watcher stops, it writes a session folder with raw events and lead-analysis outputs.
 
 ## Controls
 
@@ -59,3 +60,4 @@ bash "$SKILL_DIR/scripts/run.sh" "https://live.douyin.com/你的直播间"
 ## References
 
 - `references/runtime.md`
+- `workflow.md`
