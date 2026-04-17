@@ -1,7 +1,0 @@
-interface:
-  display_name: "Bill Processing OS"
-  short_description: "Run a local bill-processing workflow on prepared bill JSON inputs."
-  default_prompt: "Use $bill_processing_os to process my prepared bill JSON inputs through the local workflow."
-
-policy:
-  allow_implicit_invocation: true
