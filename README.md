@@ -35,6 +35,12 @@
   - 放各个 skill 的开发源码、测试和实现细节
 - `skills/`
   - 放面向用户分发的 skill 包
+- `openclaw.skills.json`
+  - 仓库级 DSL 索引，列出当前所有可单独打包分发的 OpenClaw 包
+- `scripts/package-openclaw-dsl.py`
+  - 通用 DSL 打包脚本
+- `scripts/install-openclaw-dsl.py`
+  - 通用 DSL 安装脚本
 
 ## 当前内容
 
@@ -68,3 +74,33 @@
 
 - 一个开发目录到 `packages/<skill-name>`
 - 一个分发目录到 `skills/<skill-name>`
+- 一个 `skills/<skill-name>/dsl.json`
+- 在 `openclaw.skills.json` 中登记
+
+## DSL 分发
+
+当前推荐的客户交付模式：
+
+1. 内部统一维护这个总仓库
+2. 每个 workflow 或 skill 作为一个独立 DSL 包分发
+3. 客户只安装自己需要的那个 DSL 包
+
+### 打包一个 workflow
+
+```bash
+python3 scripts/package-openclaw-dsl.py douyin-live-welcome-announcer-openclaw
+python3 scripts/package-openclaw-dsl.py feishu-call-log-workflow
+```
+
+默认产物会生成到：
+
+```text
+dist/openclaw/
+```
+
+### 从 DSL 包安装到 OpenClaw
+
+```bash
+python3 scripts/install-openclaw-dsl.py dist/openclaw/douyin-live-welcome-announcer-openclaw-0.1.0.dsl.tgz
+python3 scripts/install-openclaw-dsl.py dist/openclaw/feishu-call-log-workflow-0.1.0.dsl.tgz
+```

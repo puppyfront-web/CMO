@@ -1,0 +1,54 @@
+{
+  "schemaVersion": "1.0",
+  "packageName": "douyin-live-welcome-announcer-openclaw",
+  "displayName": "Douyin Live Welcome Announcer",
+  "kind": "workflow-skill",
+  "version": "0.1.0",
+  "skillDirName": "douyin-live-welcome-announcer-openclaw",
+  "openclaw": {
+    "skillKey": "douyin_live_welcome_announcer",
+    "emoji": "🎙️",
+    "requires": {
+      "bins": [
+        "node",
+        "npm",
+        "python3"
+      ],
+      "os": [
+        "darwin",
+        "win32"
+      ]
+    }
+  },
+  "entry": {
+    "skill": "SKILL.md",
+    "workflow": "workflow.md",
+    "agent": "agents/openai.yaml"
+  },
+  "install": {
+    "globalLinkName": "douyin-live-welcome-announcer-openclaw",
+    "installGlobal": "scripts/install-global.sh",
+    "uninstallGlobal": "scripts/uninstall-global.sh",
+    "setup": {
+      "unix": "scripts/setup.sh",
+      "windows": "scripts/setup.ps1"
+    },
+    "run": {
+      "unix": "scripts/run.sh",
+      "windows": "scripts/run.ps1"
+    }
+  },
+  "distribution": {
+    "archiveBaseName": "douyin-live-welcome-announcer-openclaw",
+    "include": [
+      "SKILL.md",
+      "INSTALL.md",
+      "workflow.md",
+      "agents",
+      "references",
+      "runtime",
+      "scripts",
+      "dsl.json"
+    ]
+  }
+}

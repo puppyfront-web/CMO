@@ -1,5 +1,38 @@
 # OpenClaw 安装说明
 
+## 推荐安装方式
+
+如果你拿到的是这个 workflow 的 DSL 包，推荐按下面两种方式之一安装：
+
+1. 已经解压到本地目录：
+
+```bash
+SKILL_DIR="$PWD/skills/douyin-live-welcome-announcer-openclaw"
+bash "$SKILL_DIR/scripts/install-global.sh"
+```
+
+2. 直接从 DSL 压缩包安装：
+
+```bash
+python3 scripts/install-openclaw-dsl.py dist/openclaw/douyin-live-welcome-announcer-openclaw-0.1.0.dsl.tgz
+```
+
+安装后再执行环境准备：
+
+macOS:
+
+```bash
+SKILL_DIR="$HOME/.openclaw/workspace/skills/douyin-live-welcome-announcer-openclaw"
+bash "$SKILL_DIR/scripts/setup.sh"
+```
+
+Windows PowerShell:
+
+```powershell
+$skillDir = "$HOME\.openclaw\workspace\skills\douyin-live-welcome-announcer-openclaw"
+powershell -ExecutionPolicy Bypass -File "$skillDir\scripts\setup.ps1"
+```
+
 这个 skill 用于在 `macOS` 或 `Windows` 上监听抖音直播间网页，在直播过程中播报礼物，并在直播结束后自动输出评论区潜在客户分析结果。
 
 适用场景：
@@ -16,25 +49,26 @@
 
 ## 安装步骤
 
-1. 把整个 skill 文件夹放到你的 OpenClaw 工作区 `skills/` 目录下：
+1. 如果你还没有把 skill 放进 OpenClaw 全局目录，先执行：
 
 ```bash
-skills/douyin-live-welcome-announcer-openclaw
+SKILL_DIR="$PWD/skills/douyin-live-welcome-announcer-openclaw"
+bash "$SKILL_DIR/scripts/install-global.sh"
 ```
 
-2. 在 OpenClaw 工作区根目录执行：
+2. 在 OpenClaw 全局 skill 目录上执行环境准备：
 
 macOS:
 
 ```bash
-SKILL_DIR="$PWD/skills/douyin-live-welcome-announcer-openclaw"
+SKILL_DIR="$HOME/.openclaw/workspace/skills/douyin-live-welcome-announcer-openclaw"
 bash "$SKILL_DIR/scripts/setup.sh"
 ```
 
 Windows PowerShell:
 
 ```powershell
-$skillDir = "$PWD\skills\douyin-live-welcome-announcer-openclaw"
+$skillDir = "$HOME\.openclaw\workspace\skills\douyin-live-welcome-announcer-openclaw"
 powershell -ExecutionPolicy Bypass -File "$skillDir\scripts\setup.ps1"
 ```
 
@@ -52,14 +86,14 @@ powershell -ExecutionPolicy Bypass -File "$skillDir\scripts\setup.ps1"
 macOS:
 
 ```bash
-SKILL_DIR="$PWD/skills/douyin-live-welcome-announcer-openclaw"
+SKILL_DIR="$HOME/.openclaw/workspace/skills/douyin-live-welcome-announcer-openclaw"
 bash "$SKILL_DIR/scripts/run.sh" "https://你的直播间链接"
 ```
 
 Windows PowerShell:
 
 ```powershell
-$skillDir = "$PWD\skills\douyin-live-welcome-announcer-openclaw"
+$skillDir = "$HOME\.openclaw\workspace\skills\douyin-live-welcome-announcer-openclaw"
 powershell -ExecutionPolicy Bypass -File "$skillDir\scripts\run.ps1" "https://你的直播间链接"
 ```
 
@@ -193,4 +227,13 @@ bash "$SKILL_DIR/scripts/run.sh" "https://你的直播间链接"
 
 ```text
 帮我运行抖音直播礼物播报 skill，并监听我的直播间链接
+```
+
+## 卸载
+
+macOS / Linux:
+
+```bash
+SKILL_DIR="$HOME/.openclaw/workspace/skills/douyin-live-welcome-announcer-openclaw"
+bash "$SKILL_DIR/scripts/uninstall-global.sh"
 ```

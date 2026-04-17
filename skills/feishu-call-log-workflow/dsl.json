@@ -1,0 +1,56 @@
+{
+  "schemaVersion": "1.0",
+  "packageName": "feishu-call-log-workflow",
+  "displayName": "Feishu Call Log Workflow",
+  "kind": "workflow-skill",
+  "version": "0.1.0",
+  "skillDirName": "feishu-call-log-workflow",
+  "openclaw": {
+    "skillKey": "feishu-call-log-workflow",
+    "emoji": "🧠",
+    "requires": {
+      "bins": [
+        "node",
+        "npm",
+        "python3",
+        "lark-cli",
+        "ffmpeg"
+      ],
+      "os": [
+        "darwin",
+        "linux",
+        "win32"
+      ]
+    }
+  },
+  "entry": {
+    "skill": "SKILL.md",
+    "workflow": "workflow.md",
+    "agent": "agents/openai.yaml"
+  },
+  "install": {
+    "globalLinkName": "feishu-call-log-workflow",
+    "installGlobal": "scripts/install-global.sh",
+    "uninstallGlobal": "scripts/uninstall-global.sh",
+    "setup": {
+      "unix": "scripts/setup.sh"
+    }
+  },
+  "distribution": {
+    "archiveBaseName": "feishu-call-log-workflow",
+    "include": [
+      "SKILL.md",
+      "INSTALL.md",
+      "README.md",
+      "PROMPT.md",
+      "workflow.md",
+      "agents",
+      "context",
+      "extensions",
+      "scripts",
+      "stages",
+      "tests",
+      "dsl.json"
+    ]
+  }
+}

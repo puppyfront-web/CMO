@@ -1,0 +1,21 @@
+{
+  "schemaVersion": "1.0",
+  "packages": [
+    {
+      "packageName": "douyin-live-welcome-announcer-openclaw",
+      "displayName": "Douyin Live Welcome Announcer",
+      "skillKey": "douyin_live_welcome_announcer",
+      "path": "skills/douyin-live-welcome-announcer-openclaw",
+      "manifest": "skills/douyin-live-welcome-announcer-openclaw/dsl.json",
+      "version": "0.1.0"
+    },
+    {
+      "packageName": "feishu-call-log-workflow",
+      "displayName": "Feishu Call Log Workflow",
+      "skillKey": "feishu-call-log-workflow",
+      "path": "skills/feishu-call-log-workflow",
+      "manifest": "skills/feishu-call-log-workflow/dsl.json",
+      "version": "0.1.0"
+    }
+  ]
+}

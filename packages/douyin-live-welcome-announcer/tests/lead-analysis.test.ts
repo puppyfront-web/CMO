@@ -73,6 +73,77 @@ describe("analyzeLeadSession", () => {
 
     expect(analysis.users.find((user) => user.nickname === "路过观众")).toBeUndefined();
   });
+
+  test("deduplicates identical comments emitted by websocket and DOM fallback", async () => {
+    const analysis = await analyzeLeadSession({
+      roomUrl: "https://live.douyin.com/812195156626",
+      startedAt: "2026-04-15T10:00:00.000Z",
+      endedAt: "2026-04-15T10:00:50.000Z",
+      events: [
+        {
+          kind: "comment",
+          nickname: "阿秋",
+          comment: "怎么买课程",
+          rawText: "阿秋：怎么买课程",
+          detectedAt: "2026-04-15T10:00:05.000Z",
+          pageUrl: "https://live.douyin.com/812195156626",
+          source: "websocket"
+        },
+        {
+          kind: "comment",
+          nickname: "阿秋",
+          comment: "怎么买课程",
+          rawText: "阿秋：怎么买课程",
+          detectedAt: "2026-04-15T10:00:06.000Z",
+          pageUrl: "https://live.douyin.com/812195156626",
+          profileUrl: "https://www.douyin.com/user/alpha",
+          source: "dom"
+        }
+      ]
+    });
+
+    expect(analysis.users[0]).toMatchObject({
+      nickname: "阿秋",
+      commentCount: 1
+    });
+    expect(analysis.users[0]?.comments).toEqual(["怎么买课程"]);
+  });
+
+  test("keeps same-nickname users separate when profile URLs differ", async () => {
+    const analysis = await analyzeLeadSession({
+      roomUrl: "https://live.douyin.com/812195156626",
+      startedAt: "2026-04-15T10:00:00.000Z",
+      endedAt: "2026-04-15T10:05:00.000Z",
+      events: [
+        {
+          kind: "comment",
+          nickname: "阿秋",
+          comment: "怎么买课程",
+          rawText: "阿秋：怎么买课程",
+          detectedAt: "2026-04-15T10:00:05.000Z",
+          pageUrl: "https://live.douyin.com/812195156626",
+          profileUrl: "https://www.douyin.com/user/alpha",
+          source: "dom"
+        },
+        {
+          kind: "comment",
+          nickname: "阿秋",
+          comment: "多少钱",
+          rawText: "阿秋：多少钱",
+          detectedAt: "2026-04-15T10:01:05.000Z",
+          pageUrl: "https://live.douyin.com/812195156626",
+          profileUrl: "https://www.douyin.com/user/beta",
+          source: "dom"
+        }
+      ]
+    });
+
+    expect(analysis.users).toHaveLength(2);
+    expect(analysis.users.map((user) => user.profileUrl)).toEqual([
+      "https://www.douyin.com/user/alpha",
+      "https://www.douyin.com/user/beta"
+    ]);
+  });
 });
 
 describe("renderLeadReport", () => {

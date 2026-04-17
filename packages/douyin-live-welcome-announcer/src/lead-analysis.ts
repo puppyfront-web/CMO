@@ -52,18 +52,24 @@ export interface AnalyzeLeadSessionOptions {
   logger?: (message: string) => void;
 }
 
-export async function analyzeLeadSession(options: AnalyzeLeadSessionOptions): Promise<LeadAnalysisResult> {
-  const userMap = new Map<string, LeadUserSummary>();
+interface AggregatedLeadUserSummary extends LeadUserSummary {
+  aggregateKey: string;
+}
 
-  for (const event of options.events) {
+export async function analyzeLeadSession(options: AnalyzeLeadSessionOptions): Promise<LeadAnalysisResult> {
+  const userMap = new Map<string, AggregatedLeadUserSummary>();
+
+  for (const event of deduplicateEvents(options.events)) {
     const nickname = event.nickname.trim();
     if (!nickname) {
       continue;
     }
 
+    const aggregateKey = resolveAggregateKey(userMap, event);
     const current =
-      userMap.get(nickname) ??
+      userMap.get(aggregateKey) ??
       {
+        aggregateKey,
         nickname,
         commentCount: 0,
         giftCount: 0,
@@ -97,7 +103,12 @@ export async function analyzeLeadSession(options: AnalyzeLeadSessionOptions): Pr
       current.giftCount += 1;
     }
 
-    userMap.set(nickname, current);
+    const nextAggregateKey = current.profileUrl ? buildProfileAggregateKey(current.profileUrl) : aggregateKey;
+    if (nextAggregateKey !== aggregateKey) {
+      userMap.delete(aggregateKey);
+      current.aggregateKey = nextAggregateKey;
+    }
+    userMap.set(current.aggregateKey, current);
   }
 
   const users = [...userMap.values()]
@@ -105,6 +116,7 @@ export async function analyzeLeadSession(options: AnalyzeLeadSessionOptions): Pr
       ...user,
       staySeconds: computeStaySeconds(user.joinAt ?? user.firstSeenAt, options.endedAt)
     }))
+    .map(({ aggregateKey: _aggregateKey, ...user }) => user)
     .filter((user) => !shouldDropSilentShortStayUser(user))
     .map((user) => scoreUser(user))
     .sort((left, right) => right.score - left.score || right.commentCount - left.commentCount);
@@ -123,7 +135,7 @@ export async function analyzeLeadSession(options: AnalyzeLeadSessionOptions): Pr
     }
 
     for (const user of users) {
-      const matchedLead = leads.find((lead) => lead.nickname === user.nickname);
+      const matchedLead = leads.find((lead) => lead.profileUrl === user.profileUrl && lead.nickname === user.nickname);
       if (matchedLead?.profile) {
         user.profile = matchedLead.profile;
       }
@@ -137,6 +149,92 @@ export async function analyzeLeadSession(options: AnalyzeLeadSessionOptions): Pr
     users,
     leads
   };
+}
+
+function deduplicateEvents(events: WatcherEntry[]): WatcherEntry[] {
+  const deduped: WatcherEntry[] = [];
+  const recentEventKeys = new Map<string, number>();
+
+  for (const event of events) {
+    const dedupeKey = buildEventDedupeKey(event);
+    if (!dedupeKey) {
+      deduped.push(event);
+      continue;
+    }
+
+    const currentMs = Date.parse(event.detectedAt);
+    const previousMs = recentEventKeys.get(dedupeKey);
+    if (previousMs !== undefined && !Number.isNaN(currentMs) && currentMs - previousMs <= 3_000) {
+      continue;
+    }
+
+    if (!Number.isNaN(currentMs)) {
+      recentEventKeys.set(dedupeKey, currentMs);
+    }
+    deduped.push(event);
+  }
+
+  return deduped;
+}
+
+function buildEventDedupeKey(event: WatcherEntry): string | undefined {
+  if (event.kind === "comment" && event.comment) {
+    return [
+      event.kind,
+      event.nickname.trim(),
+      normalizeFreeText(event.comment)
+    ].join("::");
+  }
+
+  if (event.kind === "gift" && event.gift) {
+    return [event.kind, event.nickname.trim(), normalizeFreeText(event.gift)].join("::");
+  }
+
+  return undefined;
+}
+
+function resolveAggregateKey(
+  userMap: Map<string, AggregatedLeadUserSummary>,
+  event: WatcherEntry
+): string {
+  const profileUrl = normalizeOptionalText(event.profileUrl);
+  if (profileUrl) {
+    const profileKey = buildProfileAggregateKey(profileUrl);
+    if (userMap.has(profileKey)) {
+      return profileKey;
+    }
+
+    const anonymousKey = buildAnonymousAggregateKey(event.nickname);
+    if (userMap.has(anonymousKey)) {
+      return anonymousKey;
+    }
+
+    return profileKey;
+  }
+
+  const anonymousKey = buildAnonymousAggregateKey(event.nickname);
+  if (userMap.has(anonymousKey)) {
+    return anonymousKey;
+  }
+
+  return anonymousKey;
+}
+
+function buildAnonymousAggregateKey(nickname: string): string {
+  return `nickname::${nickname.trim()}`;
+}
+
+function buildProfileAggregateKey(profileUrl: string): string {
+  return `profile::${profileUrl}`;
+}
+
+function normalizeOptionalText(value: string | undefined): string | undefined {
+  const trimmed = value?.trim();
+  return trimmed ? trimmed : undefined;
+}
+
+function normalizeFreeText(value: string): string {
+  return value.trim().replace(/\s+/gu, " ");
 }
 
 export function renderLeadReport(result: LeadAnalysisResult): string {

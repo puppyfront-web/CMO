@@ -1,10 +1,14 @@
+import type { BrowserContext } from "playwright";
+
 import type { LeadAnalysisResult } from "./lead-analysis.js";
 import type { SessionCounts, SessionRecorder, SessionSummary } from "./session.js";
 
-interface WatcherLike {
-  context: {
-    isClosed(): boolean;
-  };
+interface WatcherContextLike {
+  isClosed(): boolean;
+}
+
+interface WatcherLike<TContext extends WatcherContextLike = BrowserContext> {
+  context: TContext;
   stop(): Promise<void>;
 }
 
@@ -13,17 +17,23 @@ interface SpeakerLike {
   waitForIdle(): Promise<void>;
 }
 
-interface FinalizeWatcherSessionOptions {
-  watcher: WatcherLike;
+interface FinalizeWatcherSessionOptions<TContext extends WatcherContextLike = BrowserContext> {
+  watcher: WatcherLike<TContext>;
   speaker: SpeakerLike;
   sessionRecorder: SessionRecorder;
   counts: SessionCounts;
-  analyze(args: { summary: SessionSummary; context: WatcherLike["context"] | undefined }): Promise<LeadAnalysisResult>;
+  analyze(args: { summary: SessionSummary; context: TContext | undefined }): Promise<LeadAnalysisResult>;
   writeAnalysis(args: { summary: SessionSummary; analysis: LeadAnalysisResult }): Promise<void>;
   log(message: string): void;
 }
 
-export async function finalizeWatcherSession(options: FinalizeWatcherSessionOptions): Promise<void> {
+export function finalizeWatcherSession(options: FinalizeWatcherSessionOptions<BrowserContext>): Promise<void>;
+export function finalizeWatcherSession<TContext extends WatcherContextLike>(
+  options: FinalizeWatcherSessionOptions<TContext>
+): Promise<void>;
+export async function finalizeWatcherSession<TContext extends WatcherContextLike>(
+  options: FinalizeWatcherSessionOptions<TContext>
+): Promise<void> {
   options.speaker.stop();
   await options.watcher.stop();
 
